@@ -1,0 +1,43 @@
+version: "3.8"
+services:
+  switcher:
+    build: ./switcher
+    cap_add:
+      - NET_ADMIN
+    ports: 
+      - "5432:5432"
+    networks:
+      - db_net
+    env_file:
+      - .env
+    depends_on:
+      - dbm
+      - dbs
+  
+  dbm:
+    hostname: dbm
+    image: postgres:15
+    env_file:
+      - .env
+    networks:
+      - db_net
+    volumes:
+      - dbm-data:/var/lib/postgresql/data
+    
+  dbs:
+    hostname: dbs
+    image: postgres:15
+    env_file:
+      - .env
+    networks:
+      - db_net
+    volumes:
+      - dbs-data:/var/lib/postgresql/data
+  
+networks:
+  db_net:
+    driver: bridge
+  
+volumes:
+  dbm-data:
+  dbs-data:
