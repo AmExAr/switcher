@@ -13,6 +13,9 @@ services:
     depends_on:
       - dbm
       - dbs
+    volumes:
+      - dbm-data:/mnt/dbm
+      - dbs-data:/mnt/dbs
     privileged: true
   
   dbm:

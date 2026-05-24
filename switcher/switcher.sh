@@ -29,10 +29,12 @@ set_dnat_to() {
     num=$(iptables -t nat -L PREROUTING --line-numbers -n | awk -v d="$PORT" '$0 ~ "tcp" && $0 ~ ("dpt:"d) {print $1; exit}')
     if [ -n "$num" ]; then
       iptables -t nat -R PREROUTING "$num" -i "$EXT_IF" -p tcp --dport "$PORT" -j DNAT --to-destination "${target_ip}:${PORT}"
+      iptables -t nat -R PREROUTING "$num" -i "$EXT_IF" -p udp --dport "$PORT" -j DNAT --to-destination "${target_ip}:${PORT}"
       return
     fi
   fi
   iptables -t nat -A PREROUTING -i "$EXT_IF" -p tcp --dport "$PORT" -j DNAT --to-destination "${target_ip}:${PORT}"
+  iptables -t nat -A PREROUTING -i "$EXT_IF" -p udp --dport "$PORT" -j DNAT --to-destination "${target_ip}:${PORT}"
 }
 
 allow_forward_to() {
@@ -41,11 +43,15 @@ allow_forward_to() {
     iptables -A FORWARD -d "$target_ip" -p tcp --dport "$PORT" -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
   iptables -C FORWARD -s "$target_ip" -p tcp --sport "$PORT" -j ACCEPT >/dev/null 2>&1 || \
     iptables -A FORWARD -s "$target_ip" -p tcp --sport "$PORT" -m state --state ESTABLISHED,RELATED -j ACCEPT
+  iptables -C FORWARD -d "$target_ip" -p udp --dport "$PORT" -j ACCEPT >/dev/null 2>&1 || \
+    iptables -A FORWARD -d "$target_ip" -p udp --dport "$PORT" -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+  iptables -C FORWARD -s "$target_ip" -p udp --sport "$PORT" -j ACCEPT >/dev/null 2>&1 || \
+    iptables -A FORWARD -s "$target_ip" -p udp --sport "$PORT" -m state --state ESTABLISHED,RELATED -j ACCEPT
 }
 
 ip1=$(resolve_ip "$DBM")
 if [ -z "$ip1" ]; then
-  echo "Не могу получить ip от $DBM, заканчиваюсь" >&2
+  echo "Не могу получить ip от $DBM, выключаюсь" >&2
   exit 1
 fi
 set_dnat_to "$ip1"
@@ -71,9 +77,10 @@ while true; do
       set_dnat_to "$alt_ip"
       allow_forward_to "$alt_ip"
       if [ "$current" != "$DBS" ]; then
-        echo "$(date): сменил на -> $DBS ($alt_ip)"
+        echo "$(date): сменил на -> $DBS ($alt_ip). Завершаюсь."
         current="$DBS"
       fi
+      exit 0
     else
       echo "$(date): Обе БД не доступны" >&2
     fi
