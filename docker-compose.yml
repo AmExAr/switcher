@@ -13,6 +13,7 @@ services:
     depends_on:
       - dbm
       - dbs
+    privileged: true
   
   dbm:
     hostname: dbm
