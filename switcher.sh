@@ -2,6 +2,7 @@
 set -euo
 
 PORT="${PORT:-5432}"
+IFACE="${IFACE:-ens33}"
 PRIMARY_LOCAL_PORT="${PRIMARY_LOCAL_PORT:-5433}"
 SECONDARY_LOCAL_PORT="${SECONDARY_LOCAL_PORT:-5434}"
 PGUSER="${PGUSER:-postgres}"
@@ -12,6 +13,8 @@ iptables_bin="${IPTABLES_BIN:-iptables}"
 psql_bin="${PSQL_BIN:-psql}"
 
 sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.all.route_localnet=1 >/dev/null 2>&1
+sysctl -w net.ipv4.conf.${IFACE}.route_localnet=1 >/dev/null 2>&1
 
 psql_check() {
   local host="$1"
@@ -31,8 +34,8 @@ psql_check() {
 remove_redirect_rules() {
   local target_port="$1"
 
-  "$iptables_bin" -t nat -D PREROUTING -p tcp --dport "$PORT" -j REDIRECT --to-ports "$target_port" 2>/dev/null || true
-  "$iptables_bin" -t nat -D OUTPUT -p tcp --dport "$PORT" -j REDIRECT --to-ports "$target_port" 2>/dev/null || true
+  "$iptables_bin" -t nat -D PREROUTING -i "$IFACE" -p tcp --dport "$PORT" -j DNAT --to-destination 127.0.0.1:"$target_port" 2>/dev/null || true
+  "$iptables_bin" -D FORWARD -p tcp -d 127.0.0.1 --dport "$target_port" -j ACCEPT 2>/dev/null || true
 }
 
 set_redirect_to() {
@@ -41,8 +44,8 @@ set_redirect_to() {
   remove_redirect_rules "$PRIMARY_LOCAL_PORT"
   remove_redirect_rules "$SECONDARY_LOCAL_PORT"
 
-  "$iptables_bin" -t nat -A PREROUTING -p tcp --dport "$PORT" -j REDIRECT --to-ports "$target_port"
-  "$iptables_bin" -t nat -A OUTPUT -p tcp --dport "$PORT" -j REDIRECT --to-ports "$target_port"
+  "$iptables_bin" -t nat -A PREROUTING -i "$IFACE" -p tcp --dport "$PORT" -j DNAT --to-destination 127.0.0.1:"$target_port" 2>/dev/null || true
+  "$iptables_bin" -A FORWARD -p tcp -d 127.0.0.1 --dport "$target_port" -j ACCEPT 2>/dev/null || true
 }
 
 current=""
