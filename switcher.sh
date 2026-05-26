@@ -38,6 +38,21 @@ remove_redirect_rules() {
   "$iptables_bin" -D FORWARD -p tcp -d 127.0.0.1 --dport "$target_port" -j ACCEPT 2>/dev/null || true
 }
 
+standby_to_main() {
+  local host="$1"
+  local port="$2"
+
+  PGPASSWORD="$DB_PASS" "$psql_bin" \
+    -h "$host" \
+    -U "$PGUSER" \
+    -p "$port" \
+    -d postgres \
+    -c 'SELECT pg_promote();' \
+    --no-psqlrc \
+    --quiet \
+    >/dev/null 2>&1
+}
+
 set_redirect_to() {
   local target_port="$1"
 
@@ -69,6 +84,7 @@ while true; do
         set_redirect_to "$SECONDARY_LOCAL_PORT"
         echo "$(date): сменил на -> 127.0.0.1:${SECONDARY_LOCAL_PORT}. Завершил работу"
         current="secondary"
+        standby_to_main 127.0.0.1 "$SECONDARY_LOCAL_PORT"
         exit 0
       fi
     else
